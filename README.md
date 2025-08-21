@@ -11,7 +11,7 @@ A machine learning-powered web application that predicts healthcare insurance pr
 
 ## 🌐 Live Demo
 
-**Try the application now:** [Healthcare Premium Predictor](https://your-streamlit-app-url.streamlit.app)
+**Try the application now:** [Healthcare Premium Predictor](https://healthcare-premium-prediction-27.streamlit.app/)
 
 _Experience the full functionality of the healthcare premium prediction system with our hosted Streamlit application. No installation required!_
 
