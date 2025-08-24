@@ -1,0 +1,140 @@
+name: Enhanced Streamlit App Keep-Alive
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: "0 */6 * * *"
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  STREAMLIT_APP_URL: https://healthcare-premium-prediction-27.streamlit.app/
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Create health check script
+        run: |
+          cat > health_check.py << 'EOF'
+          import requests
+          import time
+          import json
+          from datetime import datetime
+
+          def check_app_health():
+              url = "https://healthcare-premium-prediction-27.streamlit.app/"
+              
+              try:
+                  print(f"🚀 Starting health check at {datetime.now()}")
+                  
+                  # Initial request to wake up the app
+                  print("📡 Making initial request to wake up the app...")
+                  response = requests.get(url, timeout=30)
+                  print(f"✅ Initial response: {response.status_code}")
+                  
+                  if response.status_code == 200:
+                      print("🎉 App is responding successfully!")
+                      
+                      # Wait a bit for the app to fully load
+                      print("⏳ Waiting for app to fully initialize...")
+                      time.sleep(10)
+                      
+                      # Make a second request to ensure stability
+                      print("🔄 Making follow-up request...")
+                      response2 = requests.get(url, timeout=30)
+                      print(f"✅ Follow-up response: {response2.status_code}")
+                      
+                      if response2.status_code == 200:
+                          print("🏆 App is stable and fully responsive!")
+                          return True
+                      else:
+                          print(f"⚠️ Follow-up request failed with status: {response2.status_code}")
+                          return False
+                          
+                  else:
+                      print(f"❌ App returned error status: {response.status_code}")
+                      return False
+                      
+              except requests.exceptions.Timeout:
+                  print("⏰ Request timed out - app might be sleeping")
+                  return False
+              except requests.exceptions.RequestException as e:
+                  print(f"🚨 Request failed: {str(e)}")
+                  return False
+              except Exception as e:
+                  print(f"💥 Unexpected error: {str(e)}")
+                  return False
+
+          if __name__ == "__main__":
+              success = check_app_health()
+              
+              print("\n" + "="*50)
+              print(f"📊 Health Check Summary")
+              print(f"🕐 Timestamp: {datetime.now()}")
+              print(f"🎯 Target URL: https://healthcare-premium-prediction-27.streamlit.app/")
+              print(f"📈 Status: {'SUCCESS' if success else 'FAILED'}")
+              print(f"🔄 Next check in 6 hours")
+              print("="*50)
+              
+              if not success:
+                  exit(1)
+          EOF
+
+      - name: Run health check
+        run: |
+          python health_check.py
+
+      - name: Additional curl-based check
+        run: |
+          echo "🔧 Running additional curl-based health checks..."
+
+          # Check if the app responds within reasonable time
+          if curl -f -s --max-time 45 "$STREAMLIT_APP_URL" > /dev/null; then
+            echo "✅ Curl health check passed!"
+          else
+            echo "⚠️ Curl health check failed!"
+          fi
+
+          # Check response time
+          echo "⏱️ Measuring response time..."
+          time curl -s -o /dev/null "$STREAMLIT_APP_URL"
+
+      - name: Create status report
+        run: |
+          echo "📋 Creating status report..."
+
+          cat > status_report.md << EOF
+          # Streamlit App Health Check Report
+
+          **Timestamp:** $(date)
+          **App URL:** $STREAMLIT_APP_URL
+          **Workflow:** Keep-Alive Check
+          **Frequency:** Every 6 hours
+
+          ## Status
+          ✅ Health check completed successfully
+
+          ## Next Check
+          $(date -d '+6 hours')
+
+          ## Purpose
+          This automated workflow keeps the Streamlit app active by making regular requests,
+          preventing it from going to sleep due to inactivity.
+          EOF
+
+          echo "📄 Status report created:"
+          cat status_report.md

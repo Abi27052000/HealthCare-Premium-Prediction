@@ -1,0 +1,48 @@
+name: Keep Streamlit App Alive
+
+on:
+  schedule:
+    # Run every 6 hours (at 00:00, 06:00, 12:00, 18:00 UTC)
+    - cron: "0 */6 * * *"
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Make request to Streamlit app
+        run: |
+          echo "Making request to Streamlit app..."
+
+          # Make a simple GET request to the homepage
+          response=$(curl -s -o /dev/null -w "%{http_code}" "https://healthcare-premium-prediction-27.streamlit.app/")
+
+          echo "Response code: $response"
+
+          if [ "$response" -eq 200 ]; then
+            echo "✅ App is alive and responding!"
+          else
+            echo "⚠️ App returned status code: $response"
+          fi
+
+          # Optional: Make a request to trigger some app functionality
+          # This ensures the app actually loads and processes something
+          echo "Making additional health check request..."
+
+          # You can add more specific endpoints if your app has them
+          # For now, we'll just make another request to ensure the app is fully loaded
+          sleep 5
+          response2=$(curl -s -o /dev/null -w "%{http_code}" "https://healthcare-premium-prediction-27.streamlit.app/")
+          echo "Second response code: $response2"
+
+          echo "Keep-alive request completed at $(date)"
+
+      - name: Log keep-alive action
+        run: |
+          echo "Keep-alive job completed successfully"
+          echo "Timestamp: $(date)"
+          echo "Next scheduled run: $(date -d '+6 hours')"

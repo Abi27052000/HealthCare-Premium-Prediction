@@ -1,0 +1,181 @@
+name: Streamlit App Monitoring & Keep-Alive
+
+on:
+  schedule:
+    # Run every 6 hours at specific times
+    - cron: "0 0,6,12,18 * * *"
+  workflow_dispatch:
+    inputs:
+      force_check:
+        description: "Force a comprehensive health check"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  APP_URL: https://healthcare-premium-prediction-27.streamlit.app/
+
+jobs:
+  monitor-and-keep-alive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install monitoring dependencies
+        run: |
+          pip install requests urllib3 certifi
+
+      - name: Create comprehensive monitoring script
+        run: |
+          cat > app_monitor.py << 'EOF'
+          import requests
+          import time
+          import sys
+          from datetime import datetime, timedelta
+          import json
+
+          class StreamlitAppMonitor:
+              def __init__(self, app_url, timeout=45):
+                  self.app_url = app_url
+                  self.timeout = timeout
+                  self.session = requests.Session()
+                  self.session.headers.update({
+                      'User-Agent': 'GitHub-Actions-KeepAlive/1.0'
+                  })
+                  
+              def log(self, message, level="INFO"):
+                  timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                  print(f"[{timestamp}] [{level}] {message}")
+                  
+              def check_basic_connectivity(self):
+                  """Basic connectivity check"""
+                  self.log("🔍 Starting basic connectivity check...")
+                  
+                  try:
+                      response = self.session.get(self.app_url, timeout=self.timeout)
+                      
+                      if response.status_code == 200:
+                          self.log(f"✅ App is reachable (Status: {response.status_code})")
+                          self.log(f"📊 Response time: {response.elapsed.total_seconds():.2f}s")
+                          return True, response.elapsed.total_seconds()
+                      else:
+                          self.log(f"⚠️ App returned status code: {response.status_code}", "WARN")
+                          return False, 0
+                          
+                  except requests.exceptions.Timeout:
+                      self.log("⏰ Request timed out - app may be sleeping", "WARN")
+                      return False, 0
+                  except requests.exceptions.ConnectionError:
+                      self.log("🚨 Connection error - app may be down", "ERROR")
+                      return False, 0
+                  except Exception as e:
+                      self.log(f"💥 Unexpected error: {str(e)}", "ERROR")
+                      return False, 0
+                      
+              def wake_up_sequence(self):
+                  """Sequence to wake up and verify app stability"""
+                  self.log("🚀 Starting wake-up sequence...")
+                  
+                  results = []
+                  
+                  # Initial wake-up call
+                  success, response_time = self.check_basic_connectivity()
+                  results.append(('initial', success, response_time))
+                  
+                  if success:
+                      self.log("⏳ Waiting for app to fully initialize...")
+                      time.sleep(8)
+                      
+                      # Follow-up check
+                      self.log("🔄 Performing stability check...")
+                      success2, response_time2 = self.check_basic_connectivity()
+                      results.append(('stability', success2, response_time2))
+                      
+                      if success2:
+                          # Final verification
+                          time.sleep(5)
+                          self.log("✅ Final verification check...")
+                          success3, response_time3 = self.check_basic_connectivity()
+                          results.append(('verification', success3, response_time3))
+                          
+                          if success3:
+                              avg_response_time = sum(r[2] for r in results if r[1]) / len([r for r in results if r[1]])
+                              self.log(f"🎉 App is fully active! Average response time: {avg_response_time:.2f}s")
+                              return True
+                              
+                  self.log("❌ Wake-up sequence failed", "ERROR")
+                  return False
+                  
+              def generate_report(self):
+                  """Generate a summary report"""
+                  self.log("📋 Generating monitoring report...")
+                  
+                  report = {
+                      'timestamp': datetime.now().isoformat(),
+                      'app_url': self.app_url,
+                      'next_check': (datetime.now() + timedelta(hours=6)).isoformat(),
+                      'status': 'unknown'
+                  }
+                  
+                  try:
+                      success = self.wake_up_sequence()
+                      report['status'] = 'success' if success else 'failed'
+                      
+                      self.log("="*60)
+                      self.log("📊 MONITORING SUMMARY")
+                      self.log(f"🎯 App URL: {self.app_url}")
+                      self.log(f"📅 Check Time: {report['timestamp']}")
+                      self.log(f"📈 Status: {'SUCCESS ✅' if success else 'FAILED ❌'}")
+                      self.log(f"🕐 Next Check: {report['next_check']}")
+                      self.log("="*60)
+                      
+                      return success
+                      
+                  except Exception as e:
+                      self.log(f"💥 Report generation failed: {str(e)}", "ERROR")
+                      return False
+
+          if __name__ == "__main__":
+              app_url = "https://healthcare-premium-prediction-27.streamlit.app/"
+              
+              monitor = StreamlitAppMonitor(app_url)
+              success = monitor.generate_report()
+              
+              if not success:
+                  sys.exit(1)
+          EOF
+
+      - name: Run comprehensive monitoring
+        run: |
+          echo "🎯 Starting comprehensive Streamlit app monitoring..."
+          python app_monitor.py
+
+      - name: Backup curl check
+        if: failure()
+        run: |
+          echo "🔧 Running backup curl health check..."
+
+          if curl -f -s --max-time 60 --retry 3 --retry-delay 5 "$APP_URL" > /dev/null; then
+            echo "✅ Backup health check successful!"
+          else
+            echo "❌ Backup health check also failed!"
+            echo "🚨 App may require manual intervention"
+          fi
+
+      - name: Create status badge
+        run: |
+          # Create a simple status file that could be used for badges
+          echo "$(date): Health check completed" > .github/last_check.txt
+          echo "App URL: $APP_URL" >> .github/last_check.txt
+          echo "Status: Healthy ✅" >> .github/last_check.txt
+
+          echo "📄 Status file created:"
+          cat .github/last_check.txt

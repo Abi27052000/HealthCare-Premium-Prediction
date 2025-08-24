@@ -1,0 +1,38 @@
+name: Manual App Wake-Up
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: "Streamlit App URL"
+        required: false
+        default: "https://healthcare-premium-prediction-27.streamlit.app/"
+      timeout:
+        description: "Request timeout (seconds)"
+        required: false
+        default: "30"
+
+jobs:
+  wake-up:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wake up Streamlit app
+        run: |
+          APP_URL="${{ github.event.inputs.app_url || 'https://healthcare-premium-prediction-27.streamlit.app/' }}"
+          TIMEOUT="${{ github.event.inputs.timeout || '30' }}"
+
+          echo "🚀 Waking up app: $APP_URL"
+          echo "⏱️ Timeout set to: ${TIMEOUT}s"
+
+          # Make the request
+          if curl -f -s --max-time "$TIMEOUT" "$APP_URL" > /dev/null; then
+            echo "✅ Successfully woke up the app!"
+            echo "🎉 App is now active and responding"
+          else
+            echo "❌ Failed to wake up the app"
+            echo "🔍 This might indicate an issue with the app or URL"
+            exit 1
+          fi
+
+          echo "📅 Wake-up completed at: $(date)"
